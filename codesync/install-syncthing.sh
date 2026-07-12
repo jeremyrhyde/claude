@@ -25,15 +25,26 @@ ensure_binary() {
     aarch64|arm64) arch=arm64 ;;
     *) echo "Unsupported arch $(uname -m)"; exit 1 ;;
   esac
-  echo "==> Downloading latest Syncthing for ${os}-${arch}"
+  # Linux assets are .tar.gz; macOS assets are .zip
+  if [ "$os" = "macos" ]; then ext="zip"; else ext="tar.gz"; fi
+  echo "==> Downloading latest Syncthing for ${os}-${arch} (.${ext})"
   URL="$(curl -fsSL https://api.github.com/repos/syncthing/syncthing/releases/latest \
-    | grep -oE "https://[^\"]*syncthing-${os}-${arch}-[^\"]*\.tar\.gz" | head -n1)"
-  [ -n "$URL" ] || { echo "could not find a ${os}-${arch} asset"; exit 1; }
+    | grep -oE "https://[^\"]*syncthing-${os}-${arch}-[^\"]*\.${ext}" | grep -v '\.sig' | head -n1)"
+  [ -n "$URL" ] || { echo "could not find a ${os}-${arch} .${ext} asset"; exit 1; }
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-  curl -fSL "$URL" -o "$TMP/st.tgz"; tar -xzf "$TMP/st.tgz" -C "$TMP"
+  ARC="$TMP/st.$ext"
+  curl -fSL "$URL" -o "$ARC"
+  if [ "$ext" = "zip" ]; then
+    command -v unzip >/dev/null 2>&1 || { echo "unzip not found — install it or use: brew install syncthing"; exit 1; }
+    unzip -q "$ARC" -d "$TMP"
+  else
+    tar -xzf "$ARC" -C "$TMP"
+  fi
   SB="$(find "$TMP" -type f -name syncthing | head -n1)"
   [ -n "$SB" ] || { echo "syncthing binary not in archive"; exit 1; }
   install -m 0755 "$SB" "$BIN/syncthing"
+  # macOS: strip the quarantine attribute if a downloader set it, so it can run
+  [ "$os" = "macos" ] && xattr -d com.apple.quarantine "$BIN/syncthing" 2>/dev/null || true
   echo "    installed $("$BIN/syncthing" --version)"
 }
 
