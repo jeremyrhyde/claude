@@ -1,14 +1,14 @@
 ---
-name: setup-sync
-description: Set up cross-machine Claude Code session syncing for a project on THIS machine —
+name: sync-enable
+description: Enable cross-machine Claude Code session syncing for a project on THIS machine —
   creates the Syncthing code + session folders, config, and .claude-sync marker, and shows how
-  to pair the other machine. Run it once per machine per project (e.g. desktop, then laptop).
+  to pair the other machine. Run once per machine per project (e.g. desktop, then laptop).
 ---
 
-# Set up session sync for a project
+# Enable session sync for a project
 
 1. **Identify the project.** Default to the current working directory; if it's not a project
-   root (no repo / not what the user means), ask which directory to set up.
+   root (no repo / not what the user means), ask which directory to enable.
 
 2. **Check prerequisites.** Confirm `syncthing` is installed and the daemon is reachable
    (`curl -fsS http://127.0.0.1:8384/rest/noauth/health`). If not, tell the user to run
@@ -19,18 +19,18 @@ description: Set up cross-machine Claude Code session syncing for a project on T
    if they have it yet — it's optional (they can pair later). Note that the same absolute
    `~/…` project path is NOT required across machines; different usernames/OSes are fine.
 
-4. **Run the setup script:**
-   `cc-setup-sync <project-dir> [peer-device-id]`
+4. **Run the enable script:**
+   `sync-enable <project-dir> [peer-device-id]`
    Report what it created: the two folder IDs, the encoded session-folder path, the config,
    and the `.claude-sync` marker.
 
 5. **Explain the other side.** Tell the user to, on the OTHER machine: install the tooling +
-   Syncthing, clone the project under `~/…`, then run `cc-setup-sync <that-project-dir>
+   Syncthing, clone the project under `~/…`, then run `sync-enable <that-project-dir>
    <this-machine-device-id>`. Then **accept the two shared folders** on each side (Syncthing
    UI at http://127.0.0.1:8384, or `syncthing cli`), pointing each folder at its local path.
 
 6. **Confirm.** Once both sides share the folders and show "Up to Date", the workflow is:
-   `ccopen` to start a synced session, `/handoff-close` to hand off.
+   `sync-start` (in the terminal) to begin a synced session, `/sync-stop` to hand off.
 
 Note: the code and session folders sync by Syncthing **Folder ID**, so the two machines can
 use different local paths (`/home/<user>/…` vs `/Users/<user>/…`). The transcript records

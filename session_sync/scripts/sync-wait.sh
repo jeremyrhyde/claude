@@ -1,6 +1,6 @@
 #!/bin/sh
 # Wait until the given Syncthing folders are fully synced locally, then exit.
-# Usage: cc-sync-wait [folderID ...]   (defaults to CODE_FOLDER_ID + SESSION_FOLDER_ID)
+# Usage: sync-wait [folderID ...]   (defaults to CODE_FOLDER_ID + SESSION_FOLDER_ID)
 set -eu
 SS_LIB="${SESSION_SYNC_LIB:-$(dirname "$0")/session-sync-lib.sh}"
 [ -f "$SS_LIB" ] || SS_LIB="$HOME/.local/bin/session-sync-lib.sh"

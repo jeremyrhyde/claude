@@ -1,7 +1,7 @@
 #!/bin/sh
 # Push local changes (code + flushed transcript) to the peer. Gated on the project's
 # .claude-sync marker, so it is a no-op in non-sync directories.
-# Usage: cc-sync-close
+# Usage: sync-stop
 set -eu
 SS_LIB="${SESSION_SYNC_LIB:-$(dirname "$0")/session-sync-lib.sh}"
 [ -f "$SS_LIB" ] || SS_LIB="$HOME/.local/bin/session-sync-lib.sh"
@@ -19,4 +19,4 @@ fi
   || die "CODE_FOLDER_ID/SESSION_FOLDER_ID not set in config"
 
 sync_push_folders "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
-echo "session-sync: close complete."
+echo "session-sync: sync-stop complete."

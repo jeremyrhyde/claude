@@ -130,7 +130,7 @@ are **POSIX sh**, avoiding GNU-only flags so they run on macOS's BSD userland to
 `python3`/`jq` for parsing rather than GNU `sed`/`readlink -f`).
 
 **Opt-in gating (two mechanisms, both honored).**
-1. **Skill-scoped:** `sync-close` is invoked *only* from `/handoff-close`, never automatically
+1. **Skill-scoped:** `sync-close` is invoked *only* from `/sync-stop`, never automatically
    on exit. If you close a normal session, nothing syncs.
 2. **Directory-marker:** a project opts in by having a **`.claude-sync`** marker file at its
    root (created at setup). The open helper and the skill **no-op the sync** when the marker
@@ -152,16 +152,16 @@ for id in "$@"; do curl -s -H "X-API-Key:$KEY" "$URL/rest/db/scan?folder=$id" >/
 # poll GET /rest/db/status?folder=$id until .state=="idle" && .needBytes==0 && .needItems==0
 ```
 
-### 7.3 `ccopen` — the one command you run to start (open only, no exit hook)
+### 7.3 `sync-start` — the one command you run to start (open only, no exit hook)
 Collapses "sync-wait → cd → resume" into a single wrapper. **Only opens** — it installs no
 on-exit behavior, so it never syncs when you quit Claude.
 ```sh
 . session_sync/config.sh
 [ -f "$PROJECT_DIR/.claude-sync" ] && sync-wait.sh "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
 cd "$PROJECT_DIR"
-claude --resume        # you work; closing is handled explicitly via /handoff-close
+claude --resume        # you work; closing is handled explicitly via /sync-stop
 ```
-Install as a shell function/alias `ccopen`. Sitting down = `ccopen`. If the dir has no
+Install as a shell function/alias `sync-start`. Sitting down = `sync-start`. If the dir has no
 `.claude-sync` marker, it skips the wait and just resumes (safe to use anywhere).
 
 ### 7.4 `sync-close.sh` (invoked by the skill, or run manually)
@@ -170,18 +170,18 @@ report status (optionally wait for the peer if it's currently online). **No-ops*
 project has no `.claude-sync` marker.
 
 **Ordering note.** The transcript JSONL is **appended incrementally** as the session runs, so
-when `/handoff-close` calls `sync-close.sh` mid-turn, everything up to that point is already
+when `/sync-stop` calls `sync-close.sh` mid-turn, everything up to that point is already
 on disk and gets synced. The only thing not captured is the skill's *own* trailing summary
 line — which is fine, because `HANDOFF.md` (a synced file) carries that state. If you ever
 want the byte-for-byte-complete transcript, run `sync-close.sh` once more after exiting Claude
 (optional).
 
-### 7.5 Skill: `/handoff-close` (in-session prep **and** the sync)
-Project skill at `.claude/skills/handoff-close/SKILL.md`. Run it just before you switch — this
+### 7.5 Skill: `/sync-stop` (in-session prep **and** the sync)
+Project skill at `.claude/skills/sync-stop/SKILL.md`. Run it just before you switch — this
 is the single explicit "hand off" action, and it performs the sync itself:
 ```markdown
 ---
-name: handoff-close
+name: sync-stop
 description: Hand this Claude Code session off to another machine — write a handoff note,
   optionally commit WIP, and sync (code + transcript) to the peer. Use right before switching
   computers. Only syncs if the project has a .claude-sync marker.
@@ -191,7 +191,7 @@ description: Hand this Claude Code session off to another machine — write a ha
 3. If a `.claude-sync` marker exists at the project root, run
    `session_sync/scripts/sync-close.sh` and report the sync status; otherwise report that
    sync is not enabled for this directory and skip it.
-4. Print the resume command for the other machine (`ccopen`).
+4. Print the resume command for the other machine (`sync-start`).
 ```
 
 ### 7.6 Locating the Syncthing API key portably
@@ -207,14 +207,14 @@ then greps the key. (Avoids hardcoding OS paths.)
 
 **Per machine, when you sit down:**
 ```sh
-ccopen           # waits for sync (if .claude-sync present), then resumes in /opt/dev/claude
+sync-start           # waits for sync (if .claude-sync present), then resumes in /opt/dev/claude
 ```
 **When you're ready to hand off / leave:**
 ```
-/handoff-close   # writes HANDOFF.md, optionally commits WIP, AND runs the sync-close
+/sync-stop   # writes HANDOFF.md, optionally commits WIP, AND runs the sync-close
 ```
 Then exit Claude normally. Nothing syncs on a plain exit — sync happens **only** when you run
-`/handoff-close`, and **only** in a `.claude-sync` directory.
+`/sync-stop`, and **only** in a `.claude-sync` directory.
 
 So: **one command to open, one skill to hand off.** Normal `claude` sessions elsewhere are
 completely unaffected. (`sync-wait` / `sync-close` still exist as standalone scripts for
@@ -239,20 +239,20 @@ add Folder B (`$HOME/.claude/projects/-opt-dev-claude`) with ID `claude-sessions
 send-receive.
 **Marker:** `touch /opt/dev/claude/.claude-sync` to opt this project into syncing.
 **Scripts/skill:** drop `session_sync/scripts/*` + `session_sync/config.sh` +
-`.claude/skills/handoff-close/`; add the `ccopen` function to your shell rc on both machines.
+`.claude/skills/sync-stop/`; add the `sync-start` function to your shell rc on both machines.
 
 ## 11. Verification / test plan
 
-1. Desktop: `ccopen`, make a trivial uncommitted edit, `/handoff-close` (syncs), exit.
-2. Laptop: `ccopen`; confirm the session resumes and the edit is present; one turn;
-   `/handoff-close`; exit.
-3. Desktop: `ccopen`; confirm the laptop's turn + edits are present.
-4. Verify a session in a **non**-`.claude-sync` dir does nothing on `/handoff-close` (no sync).
+1. Desktop: `sync-start`, make a trivial uncommitted edit, `/sync-stop` (syncs), exit.
+2. Laptop: `sync-start`; confirm the session resumes and the edit is present; one turn;
+   `/sync-stop`; exit.
+3. Desktop: `sync-start`; confirm the laptop's turn + edits are present.
+4. Verify a session in a **non**-`.claude-sync` dir does nothing on `/sync-stop` (no sync).
 5. Deliberately edit both offline; confirm a `sync-conflict` file appears; verify recovery.
 
 ## 12. Open decisions
 
-- **WIP auto-commit** in `/handoff-close`: prompt each time (default) vs. always automatic?
+- **WIP auto-commit** in `/sync-stop`: prompt each time (default) vs. always automatic?
 - **Folder B scope:** single project subfolder (recommended) vs. all of `~/.claude/projects/`.
 - **Multiple projects later:** replicate the Folder A/B pair per project, or one shared
   `/opt/dev` code root with per-project session subfolders.

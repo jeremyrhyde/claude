@@ -8,7 +8,7 @@ PROJECT_DIR="/opt/dev/claude"
 CODE_FOLDER_ID="claude-code"          # Folder A: the project directory ($PROJECT_DIR)
 SESSION_FOLDER_ID="claude-sessions"   # Folder B: $HOME/.claude/projects/<encoded-path>/
 
-# Optional: the OTHER machine's Syncthing device ID. If set, cc-sync-close will wait until the
+# Optional: the OTHER machine's Syncthing device ID. If set, sync-stop will wait until the
 # peer has actually received your changes (when it's online). Leave empty to just index & go.
 PEER_DEVICE_ID=""
 
