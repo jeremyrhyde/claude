@@ -6,7 +6,7 @@
 #
 # Model (multi-repo + multi-peer):
 #   - Global per-machine config (~/.config/codesync/config.sh) holds ONLY shared settings:
-#       PEER_DEVICE_IDS="id1 id2 …"   plus optional SYNCTHING_URL / SYNC_WAIT_TIMEOUT / SYNCTHING_API_KEY
+#       PEER_DEVICE_IDS="id1 id2 ..."   plus optional SYNCTHING_URL / SYNC_WAIT_TIMEOUT / SYNCTHING_API_KEY
 #   - Each synced project is marked by a `.codesync` file at its root that records its
 #       CODE_FOLDER_ID / SESSION_FOLDER_ID. start/stop resolve the project from the current
 #       directory (walking up to the marker), so any number of repos work independently.
@@ -139,11 +139,11 @@ sync_push_folders() {
     short=$(printf '%s' "$peer" | cut -c1-7)
     online=$(printf '%s' "$conns" | jq -r --arg d "$peer" '.connections[$d].connected // false')
     if [ "$online" != "true" ]; then
-      echo "codesync: peer ${short}… offline — it'll pull when it reconnects."
+      echo "codesync: peer ${short}... offline — it'll pull when it reconnects."
       continue
     fi
     for id in "$@"; do
-      printf 'codesync: pushing "%s" to %s… ' "$id" "$short"
+      printf 'codesync: pushing "%s" to %s... ' "$id" "$short"
       while :; do
         comp=$(st_get "/rest/db/completion?folder=$id&device=$peer" | jq -r '.completion // 100')
         pct=$(printf '%.0f' "$comp")
@@ -158,7 +158,7 @@ sync_push_folders() {
 
 # --- subcommands ------------------------------------------------------------
 cmd_wait() {
-  [ "$#" -ge 1 ] || die "usage: codesync wait <folder-id> [folder-id …]"
+  [ "$#" -ge 1 ] || die "usage: codesync wait <folder-id> [folder-id ...]"
   sync_wait_folders "$@"
 }
 
@@ -192,18 +192,18 @@ cmd_stop() {
 }
 
 cmd_enable() {
-  # Parse: <project-dir> [peer-id …] [--hub <hub-id>]  (order-independent)
+  # Parse: <project-dir> [peer-id ...] [--hub <hub-id>]  (order-independent)
   DIR=""; NEW_PEERS=""; NEW_HUBS=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --hub)   shift; [ -n "${1:-}" ] || die "--hub requires a device id"; NEW_HUBS="$NEW_HUBS $1" ;;
       --hub=*) NEW_HUBS="$NEW_HUBS ${1#--hub=}" ;;
-      -*)      die "unknown option '$1' (usage: codesync enable <project-dir> [peer-id …] [--hub <hub-id>])" ;;
+      -*)      die "unknown option '$1' (usage: codesync enable <project-dir> [peer-id ...] [--hub <hub-id>])" ;;
       *)       if [ -z "$DIR" ]; then DIR="$1"; else NEW_PEERS="$NEW_PEERS $1"; fi ;;
     esac
     shift
   done
-  [ -n "$DIR" ] || die "usage: codesync enable <project-dir> [peer-device-id …] [--hub <hub-id>]"
+  [ -n "$DIR" ] || die "usage: codesync enable <project-dir> [peer-device-id ...] [--hub <hub-id>]"
   have syncthing || die "syncthing not found — run install-syncthing.sh first"
   st_ready
   PROJECT_DIR=$(cd "$DIR" 2>/dev/null && pwd) || die "project dir '$DIR' not found"
@@ -255,14 +255,14 @@ EOF
   for p in $ALL_PEERS; do
     short=$(printf '%s' "$p" | cut -c1-7)
     syncthing cli config devices add --device-id "$p" --name "peer-$short" 2>/dev/null \
-      && echo "  added device $short…" || true
+      && echo "  added device $short..." || true
     case " $ALL_HUBS " in
       *" $p "*) syncthing cli config devices "$p" introducer set true 2>/dev/null \
-                  && echo "  marked $short… as introducer (hub)" || true ;;
+                  && echo "  marked $short... as introducer (hub)" || true ;;
     esac
     for f in "$CODE_ID" "$SESSION_ID"; do
       syncthing cli config folders "$f" devices add --device-id "$p" 2>/dev/null \
-        && echo "  shared '$f' with $short…" || true
+        && echo "  shared '$f' with $short..." || true
     done
   done
 
@@ -272,7 +272,7 @@ EOF
 codesync: enabled '$NAME'.
   This machine's Device ID: $MYID
   Hub-and-spoke (recommended for 3+): on the always-on HUB run
-      codesync enable <dir> <spoke-id> [<spoke-id> …]     # hub knows every spoke
+      codesync enable <dir> <spoke-id> [<spoke-id> ...]     # hub knows every spoke
   and on EACH other machine run
       codesync enable <dir> --hub $MYID                    # spoke points at the hub; auto-meshes
   Or full mesh: pass every other machine's id as plain peers.

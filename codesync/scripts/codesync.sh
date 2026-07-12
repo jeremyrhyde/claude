@@ -1,10 +1,10 @@
 #!/bin/sh
 # codesync — cross-machine Claude Code session sync via Syncthing.
-#   codesync start [claude args…]                begin/resume a synced session
+#   codesync start [claude args...]                begin/resume a synced session
 #   codesync stop                                push / hand off (usually via /codesync:stop)
 #   codesync enable  <project-dir> [peer-id]     set up a project for syncing
 #   codesync disable <project-dir> [--remove-folders]   opt a project out
-#   codesync wait    [folder-id …]               block until folders are synced (helper)
+#   codesync wait    [folder-id ...]               block until folders are synced (helper)
 set -eu
 SS_LIB="${CODESYNC_LIB:-$(dirname "$0")/codesync-lib.sh}"
 [ -f "$SS_LIB" ] || SS_LIB="$HOME/.local/bin/codesync-lib.sh"
@@ -15,11 +15,11 @@ usage() {
   cat <<'EOF'
 codesync — cross-machine Claude Code session sync (Syncthing)
 
-  codesync start [claude args…]              begin/resume a synced session
+  codesync start [claude args...]              begin/resume a synced session
   codesync stop                              push / hand off (usually via /codesync:stop)
   codesync enable  <project-dir> [peer-id]   set up a project for syncing
   codesync disable <project-dir> [--remove-folders]
-  codesync wait    [folder-id …]             block until folders are synced (helper)
+  codesync wait    [folder-id ...]             block until folders are synced (helper)
 EOF
 }
 
