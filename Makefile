@@ -2,7 +2,7 @@
 #
 #   make setup             install required system packages (jq, curl, git)
 #   make install           Syncthing (if missing) + the `codesync` command
-#   make install-globally  register + install the codesync plugin at user scope (all projects)
+#   make install-globally  runs 'install' first, then registers + installs the plugin (user scope)
 #   make all               setup + install + install-globally
 #
 # Focused on codesync for now; other subsystems can add targets later.
@@ -16,7 +16,7 @@ help:
 	@echo "codesync install targets:"
 	@echo "  make setup             install required packages (jq, curl, git)"
 	@echo "  make install           Syncthing (if missing) + the 'codesync' command"
-	@echo "  make install-globally  register + install the codesync plugin (user scope, all projects)"
+	@echo "  make install-globally  install (above) + register/install the codesync plugin (user scope)"
 	@echo "  make all               setup + install + install-globally"
 
 setup:
@@ -44,7 +44,7 @@ install-codesync:
 	@echo "==> Installing the codesync command"
 	@bash "$(CODESYNC)/install.sh"
 
-install-globally:
+install-globally: install
 	@command -v claude >/dev/null 2>&1 || { echo "The 'claude' CLI is required — install Claude Code first."; exit 1; }
 	@echo "==> Registering marketplace + installing the codesync plugin (user scope)"
 	@claude plugin marketplace add "$(REPO_ROOT)" 2>/dev/null || echo "   (marketplace already registered)"
