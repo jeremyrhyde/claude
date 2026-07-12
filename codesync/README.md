@@ -98,16 +98,33 @@ then **accept the two shared folders**, pointing each at its local path. (Passin
 ## Usage
 
 ```bash
-codesync start            # sit down at either machine: waits for sync, then resumes the session
+cd ~/Development/<repo>    # codesync start/stop act on the repo you're IN
+codesync start            # waits for sync, then resumes THIS repo's session
 # ...work with Claude...
 /codesync:stop            # before switching: writes HANDOFF.md, optional WIP commit, pushes the sync
 # then exit Claude normally
 ```
 
-- Normal `claude` sessions anywhere else are unaffected — nothing syncs unless you run
-  `/codesync:stop` in a `.codesync` directory.
-- `codesync start` passes extra args through to `claude` (default is `--continue`; use
+- **Directory-aware:** `codesync start` and `/codesync:stop` resolve the project from your
+  current directory (the nearest `.codesync` marker), so they work per-repo with no config
+  switching. `codesync start <dir>` also works.
+- Normal `claude` sessions anywhere else are unaffected — nothing syncs unless you're in a
+  `.codesync` directory.
+- `codesync start` passes extra args through to `claude` (default `--continue`; use
   `codesync start --resume` for the session picker).
+
+## Multiple repos & 3+ machines
+
+- **Many repos:** just `codesync enable ~/Development/<repo>` for each one. Every repo gets its
+  own independent folder pair (`<repo>-code` / `<repo>-sessions`) and its own `.codesync` marker;
+  they all sync at once. `codesync start`/`stop` pick the right one from your current directory.
+- **3+ machines:** peers are a **list** (`PEER_DEVICE_IDS`). Pass every other machine's Device ID
+  to `codesync enable` — e.g. on machine A: `codesync enable <repo> <B-id> <C-id>`, on B:
+  `… <A-id> <C-id>`, etc. Peers are stored globally, so after the first `enable` you can add new
+  repos with just `codesync enable <repo>` (no IDs) and they'll share with all known peers.
+  `codesync stop` pushes to every peer that's currently online; the rest pull when they reconnect.
+- **One machine per directory at a time** — codesync assumes sequential use; don't run the same
+  project's session live on two machines simultaneously (Syncthing would create a conflict file).
 
 ## Rules & gotchas
 

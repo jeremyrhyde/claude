@@ -1,19 +1,11 @@
-# codesync configuration — REFERENCE ONLY.
-# You normally never write this by hand: `codesync enable <project-dir>` (or /codesync:enable)
-# generates ~/.config/codesync/config.sh for you, with the real paths + folder IDs.
-#
-# Paths MAY differ per machine (home-based is fine — folders sync by Syncthing Folder ID, not
-# path). See DESIGN.md §6.
+# codesync GLOBAL config (per-machine) — REFERENCE ONLY.
+# `codesync enable <dir> [peer-ids…]` writes and maintains ~/.config/codesync/config.sh for you.
+# It holds only machine-wide settings; per-project folder IDs live in each repo's `.codesync`
+# marker, so any number of repos are supported.
 
-PROJECT_DIR="$HOME/Development/pluto"    # this machine's absolute project path (e.g. /Users/you/Development/pluto)
-
-# Syncthing folder IDs (codesync enable derives these from the project name: <name>-code / <name>-sessions).
-CODE_FOLDER_ID="pluto-code"             # Folder A: the project directory ($PROJECT_DIR)
-SESSION_FOLDER_ID="pluto-sessions"      # Folder B: $HOME/.claude/projects/<encoded-path>/
-
-# Optional: the OTHER machine's Syncthing device ID. If set, `codesync stop` waits until the
-# peer has actually received your changes (when it's online). Leave empty to just index & go.
-PEER_DEVICE_ID=""
+# Space-separated Syncthing Device IDs of the OTHER machines you sync with (2, 3, or more).
+# `codesync stop` waits for each of these that's currently online to receive your changes.
+PEER_DEVICE_IDS="I7FNI6T-7OS7SKC-… ANOTHER-MACHINE-ID-…"
 
 # Optional overrides (sensible defaults otherwise):
 # SYNCTHING_URL="http://127.0.0.1:8384"

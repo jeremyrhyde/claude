@@ -3,11 +3,19 @@
 # Provides: config loading, portable Syncthing API-key discovery, REST helpers, the
 # scan/wait/push logic, and the enable/disable/start/stop/wait subcommand implementations.
 # POSIX sh + jq (runs on Linux and macOS).
+#
+# Model (multi-repo + multi-peer):
+#   - Global per-machine config (~/.config/codesync/config.sh) holds ONLY shared settings:
+#       PEER_DEVICE_IDS="id1 id2 …"   plus optional SYNCTHING_URL / SYNC_WAIT_TIMEOUT / SYNCTHING_API_KEY
+#   - Each synced project is marked by a `.codesync` file at its root that records its
+#       CODE_FOLDER_ID / SESSION_FOLDER_ID. start/stop resolve the project from the current
+#       directory (walking up to the marker), so any number of repos work independently.
 
 # --- config -----------------------------------------------------------------
 : "${CODESYNC_CONFIG:=$HOME/.config/codesync/config.sh}"
 # shellcheck disable=SC1090
 [ -f "$CODESYNC_CONFIG" ] && . "$CODESYNC_CONFIG"
+: "${PEER_DEVICE_IDS:=${PEER_DEVICE_ID:-}}"   # back-compat with the old single-peer var
 : "${SYNCTHING_URL:=http://127.0.0.1:8384}"
 : "${SYNC_WAIT_TIMEOUT:=120}"
 
@@ -43,7 +51,6 @@ syncthing_api_key() {
   printf '%s' "$key"
 }
 
-# Resolve tools + API key in the MAIN shell (so die() actually exits). Call before any st_*.
 st_ready() {
   require_tools
   [ -n "${ST_KEY:-}" ] && return 0
@@ -51,6 +58,44 @@ st_ready() {
 }
 st_get()  { curl -fsS -H "X-API-Key: $ST_KEY" "$SYNCTHING_URL$1"; }
 st_post() { curl -fsS -X POST -H "X-API-Key: $ST_KEY" "$SYNCTHING_URL$1"; }
+
+# --- project resolution -----------------------------------------------------
+# Walk up from a directory to find the nearest .codesync marker; prints the project root.
+find_project_root() {
+  d=$(cd "${1:-$PWD}" 2>/dev/null && pwd) || return 1
+  while [ -n "$d" ] && [ "$d" != "/" ]; do
+    [ -f "$d/.codesync" ] && { printf '%s' "$d"; return 0; }
+    d=$(dirname "$d")
+  done
+  [ -f "/.codesync" ] && { printf '/'; return 0; }
+  return 1
+}
+
+# Set CODE_ID / SESSION_ID for a project dir: from its .codesync marker if present, else derive.
+load_project_ids() {
+  _p="$1"; CODE_ID=""; SESSION_ID=""
+  if [ -f "$_p/.codesync" ]; then
+    CODE_ID=$(sed -n 's/^CODE_FOLDER_ID="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$_p/.codesync" | head -1)
+    SESSION_ID=$(sed -n 's/^SESSION_FOLDER_ID="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$_p/.codesync" | head -1)
+  fi
+  [ -n "$CODE_ID" ]    || CODE_ID="$(basename "$_p")-code"
+  [ -n "$SESSION_ID" ] || SESSION_ID="$(basename "$_p")-sessions"
+}
+
+# Combine + de-duplicate space-separated device-id lists (args), print one space-joined line.
+merge_peers() { printf '%s\n' "$@" | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' ' | sed 's/ *$//'; }
+
+# Rewrite the global config with a new peer list, preserving any user overrides.
+write_global_config() {
+  cfgdir=$(dirname "$CODESYNC_CONFIG"); mkdir -p "$cfgdir"
+  tmp="$CODESYNC_CONFIG.new"
+  {
+    echo "# codesync global config (per-machine) — managed by 'codesync enable'."
+    echo "PEER_DEVICE_IDS=\"$1\""
+    [ -f "$CODESYNC_CONFIG" ] && grep -E '^(SYNCTHING_URL|SYNCTHING_API_KEY|SYNC_WAIT_TIMEOUT)=' "$CODESYNC_CONFIG" 2>/dev/null || true
+  } > "$tmp"
+  mv "$tmp" "$CODESYNC_CONFIG"
+}
 
 # --- sync operations --------------------------------------------------------
 sync_scan() { for id in "$@"; do st_post "/rest/db/scan?folder=$id" >/dev/null 2>&1 || true; done; }
@@ -74,53 +119,56 @@ sync_wait_folders() {
   echo "codesync: up to date."
 }
 
+# Push the given folders to every configured peer that is currently online.
 sync_push_folders() {
   st_ready
   for id in "$@"; do
     st_post "/rest/db/scan?folder=$id" >/dev/null || die "rescan failed for \"$id\" — is Syncthing running?"
     echo "codesync: rescanned \"$id\""
   done
-  if [ -z "${PEER_DEVICE_ID:-}" ]; then
-    echo "codesync: indexed locally — the peer will pull on next connect. (Set PEER_DEVICE_ID to wait.)"
+  if [ -z "${PEER_DEVICE_IDS:-}" ]; then
+    echo "codesync: indexed locally — peers will pull on next connect. (No PEER_DEVICE_IDS set.)"
     return 0
   fi
-  online=$(st_get "/rest/system/connections" 2>/dev/null | jq -r --arg d "$PEER_DEVICE_ID" '.connections[$d].connected // false')
-  if [ "$online" != "true" ]; then
-    echo "codesync: peer offline — changes will push automatically when it reconnects."
-    return 0
-  fi
+  conns=$(st_get "/rest/system/connections" 2>/dev/null || echo '{}')
   _start=$(date +%s)
-  for id in "$@"; do
-    printf 'codesync: pushing "%s" to peer ' "$id"
-    while :; do
-      comp=$(st_get "/rest/db/completion?folder=$id&device=$PEER_DEVICE_ID" | jq -r '.completion // 100')
-      pct=$(printf '%.0f' "$comp")
-      [ "$pct" -ge 100 ] && { echo "OK"; break; }
-      _now=$(date +%s)
-      [ $(( _now - _start )) -ge "$SYNC_WAIT_TIMEOUT" ] && { echo "(timeout — will finish in the background)"; break; }
-      printf '.'; sleep 2
+  for peer in $PEER_DEVICE_IDS; do
+    short=$(printf '%s' "$peer" | cut -c1-7)
+    online=$(printf '%s' "$conns" | jq -r --arg d "$peer" '.connections[$d].connected // false')
+    if [ "$online" != "true" ]; then
+      echo "codesync: peer ${short}… offline — it'll pull when it reconnects."
+      continue
+    fi
+    for id in "$@"; do
+      printf 'codesync: pushing "%s" to %s… ' "$id" "$short"
+      while :; do
+        comp=$(st_get "/rest/db/completion?folder=$id&device=$peer" | jq -r '.completion // 100')
+        pct=$(printf '%.0f' "$comp")
+        [ "$pct" -ge 100 ] && { echo "OK"; break; }
+        _now=$(date +%s)
+        [ $(( _now - _start )) -ge "$SYNC_WAIT_TIMEOUT" ] && { echo "(timeout — finishing in background)"; break; }
+        printf '.'; sleep 2
+      done
     done
   done
 }
 
 # --- subcommands ------------------------------------------------------------
 cmd_wait() {
-  if [ "$#" -eq 0 ]; then
-    [ -n "${CODE_FOLDER_ID:-}" ] && [ -n "${SESSION_FOLDER_ID:-}" ] \
-      || die "no folder IDs given and CODE_FOLDER_ID/SESSION_FOLDER_ID not set in config"
-    set -- "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
-  fi
+  [ "$#" -ge 1 ] || die "usage: codesync wait <folder-id> [folder-id …]"
   sync_wait_folders "$@"
 }
 
 cmd_start() {
-  [ -n "${PROJECT_DIR:-}" ] || die "PROJECT_DIR not set in config ($CODESYNC_CONFIG)"
-  if [ -f "$PROJECT_DIR/.codesync" ]; then
-    [ -n "${CODE_FOLDER_ID:-}" ] && [ -n "${SESSION_FOLDER_ID:-}" ] || die "CODE_FOLDER_ID/SESSION_FOLDER_ID not set in config"
-    sync_wait_folders "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
+  if [ "$#" -ge 1 ] && [ -d "$1" ]; then
+    PROJECT_DIR=$(cd "$1" && pwd); shift
   else
-    echo "codesync: no .codesync marker in '$PROJECT_DIR' — opening without a sync wait."
+    PROJECT_DIR=$(find_project_root "$PWD") \
+      || die "not inside a codesync-enabled project — cd into one (or pass its path). Run 'codesync enable <dir>' first."
   fi
+  [ -f "$PROJECT_DIR/.codesync" ] || die "'$PROJECT_DIR' is not codesync-enabled (no .codesync marker). Run: codesync enable '$PROJECT_DIR'"
+  load_project_ids "$PROJECT_DIR"
+  sync_wait_folders "$CODE_ID" "$SESSION_ID"
   cd "$PROJECT_DIR"
   [ "$#" -gt 0 ] && exec claude "$@"
   ENC=$(printf '%s' "$PROJECT_DIR" | sed 's:/:-:g')
@@ -133,30 +181,27 @@ cmd_start() {
 }
 
 cmd_stop() {
-  [ -n "${PROJECT_DIR:-}" ] || die "PROJECT_DIR not set in config ($CODESYNC_CONFIG)"
-  if [ ! -f "$PROJECT_DIR/.codesync" ]; then
-    echo "codesync: '$PROJECT_DIR' has no .codesync marker — sync not enabled, skipping."
-    return 0
-  fi
-  [ -n "${CODE_FOLDER_ID:-}" ] && [ -n "${SESSION_FOLDER_ID:-}" ] || die "CODE_FOLDER_ID/SESSION_FOLDER_ID not set in config"
-  sync_push_folders "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
-  echo "codesync: stop complete."
+  PROJECT_DIR=$(find_project_root "$PWD") || {
+    echo "codesync: not inside a codesync-enabled project — nothing to push."; return 0; }
+  load_project_ids "$PROJECT_DIR"
+  sync_push_folders "$CODE_ID" "$SESSION_ID"
+  echo "codesync: stop complete for '$(basename "$PROJECT_DIR")'."
 }
 
 cmd_enable() {
-  [ "$#" -ge 1 ] || die "usage: codesync enable <project-dir> [peer-device-id]"
+  [ "$#" -ge 1 ] || die "usage: codesync enable <project-dir> [peer-device-id …]"
   have syncthing || die "syncthing not found — run install-syncthing.sh first"
   st_ready
   PROJECT_DIR=$(cd "$1" 2>/dev/null && pwd) || die "project dir '$1' not found"
-  PEER="${2:-}"
+  shift
+  NEW_PEERS="$*"
   NAME=$(basename "$PROJECT_DIR")
   CODE_ID="${NAME}-code"; SESSION_ID="${NAME}-sessions"
   ENC=$(printf '%s' "$PROJECT_DIR" | sed 's:/:-:g')
   SESSION_DIR="$HOME/.claude/projects/$ENC"
   echo "codesync: project      $PROJECT_DIR"
   echo "codesync: code folder  id=$CODE_ID"
-  echo "codesync: session dir  $SESSION_DIR"
-  echo "codesync: session id   $SESSION_ID"
+  echo "codesync: session dir  $SESSION_DIR (id=$SESSION_ID)"
   mkdir -p "$SESSION_DIR"
 
   if [ ! -f "$PROJECT_DIR/.stignore" ]; then
@@ -184,37 +229,32 @@ EOF
   _add_folder "$CODE_ID" "$PROJECT_DIR"
   _add_folder "$SESSION_ID" "$SESSION_DIR"
 
-  CFG_DIR="$HOME/.config/codesync"; mkdir -p "$CFG_DIR"
-  cat > "$CFG_DIR/config.sh" <<EOF
-# codesync config (generated on $(uname -sn))
-PROJECT_DIR="$PROJECT_DIR"
-CODE_FOLDER_ID="$CODE_ID"
-SESSION_FOLDER_ID="$SESSION_ID"
-PEER_DEVICE_ID="$PEER"
-EOF
-  echo "codesync: wrote $CFG_DIR/config.sh"
-  touch "$PROJECT_DIR/.codesync"
+  # per-project marker records the folder IDs (start/stop read this)
+  printf 'CODE_FOLDER_ID="%s"\nSESSION_FOLDER_ID="%s"\n' "$CODE_ID" "$SESSION_ID" > "$PROJECT_DIR/.codesync"
   echo "codesync: marked $PROJECT_DIR/.codesync"
 
-  if [ -n "$PEER" ]; then
-    echo "codesync: sharing with peer $PEER"
-    syncthing cli config devices add --device-id "$PEER" --name peer 2>/dev/null \
-      && echo "  added peer device" || echo "  peer device already present (or add skipped)"
+  # merge any new peers into the global peer list, then share this project's folders with all
+  ALL_PEERS=$(merge_peers "$PEER_DEVICE_IDS" "$NEW_PEERS")
+  write_global_config "$ALL_PEERS"
+  echo "codesync: peers = ${ALL_PEERS:-<none>}"
+  for p in $ALL_PEERS; do
+    syncthing cli config devices add --device-id "$p" --name "peer-$(printf '%s' "$p" | cut -c1-7)" 2>/dev/null \
+      && echo "  added device $(printf '%s' "$p" | cut -c1-7)…" || true
     for f in "$CODE_ID" "$SESSION_ID"; do
-      syncthing cli config folders "$f" devices add --device-id "$PEER" 2>/dev/null \
-        && echo "  shared '$f' with peer" || echo "  '$f' already shared (or share skipped)"
+      syncthing cli config folders "$f" devices add --device-id "$p" 2>/dev/null \
+        && echo "  shared '$f' with $(printf '%s' "$p" | cut -c1-7)…" || true
     done
-  fi
+  done
 
   MYID=$(st_get /rest/system/status | jq -r .myID)
   cat <<EOF
 
-codesync: enabled for '$NAME'.
+codesync: enabled '$NAME'.
   This machine's Device ID: $MYID
-  On the OTHER machine, clone the project under ~/… (path may differ), then run:
-      codesync enable <that-project-dir> $MYID
-  Finally, accept the shared folders on each side (Syncthing UI or 'syncthing cli').
-  Then use:  codesync start  to begin, and  /codesync:stop  to hand off.
+  On EACH other machine: clone the project under ~/… (path may differ), then run
+      codesync enable <that-project-dir> $MYID [other-peer-ids…]
+  (peers are stored globally, so once set you can 'codesync enable <repo>' with no IDs).
+  Accept the shared folders on each side, then: 'codesync start' / '/codesync:stop'.
 EOF
 }
 
@@ -222,7 +262,7 @@ cmd_disable() {
   [ "$#" -ge 1 ] || die "usage: codesync disable <project-dir> [--remove-folders]"
   PROJECT_DIR=$(cd "$1" 2>/dev/null && pwd) || die "project dir '$1' not found"
   REMOVE="${2:-}"
-  NAME=$(basename "$PROJECT_DIR"); CODE_ID="${NAME}-code"; SESSION_ID="${NAME}-sessions"
+  load_project_ids "$PROJECT_DIR"
   if [ -f "$PROJECT_DIR/.codesync" ]; then
     rm -f "$PROJECT_DIR/.codesync"
     echo "codesync: removed marker $PROJECT_DIR/.codesync (syncing paused for this project)"
@@ -237,11 +277,8 @@ cmd_disable() {
         && echo "codesync: unregistered Syncthing folder '$f'" \
         || echo "codesync: folder '$f' not present"
     done
-    CFG="$HOME/.config/codesync/config.sh"
-    if [ -f "$CFG" ] && grep -q "PROJECT_DIR=\"$PROJECT_DIR\"" "$CFG" 2>/dev/null; then
-      rm -f "$CFG"; echo "codesync: removed $CFG"
-    fi
-    echo "codesync: folders/config removed. Your code and ~/.claude transcripts are untouched."
+    echo "codesync: folders removed. Your code and ~/.claude transcripts are untouched."
+    echo "          (peers stay in the global config; other projects are unaffected.)"
   else
     echo "codesync: folders left registered. Re-enable with 'codesync enable', or fully tear"
     echo "          down with: codesync disable '$PROJECT_DIR' --remove-folders"

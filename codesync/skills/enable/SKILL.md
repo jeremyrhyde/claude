@@ -15,20 +15,22 @@ disable-model-invocation: true
    (`curl -fsS http://127.0.0.1:8384/rest/noauth/health`). If not, tell the user to run
    `codesync/install-syncthing.sh` first, then stop.
 
-3. **Ask about the peer.** Show *this* machine's Device ID
-   (`syncthing cli show system | jq -r .myID`). Ask the user for the OTHER machine's Device ID
-   if they have it yet — it's optional (they can pair later). Note that the same absolute
-   `~/…` project path is NOT required across machines; different usernames/OSes are fine.
+3. **Ask about the peers.** Show *this* machine's Device ID
+   (`syncthing cli show system | jq -r .myID`). Ask for the OTHER machines' Device IDs — you can
+   pass **several** (2, 3, or more machines). It's optional (they can pair later), and peers are
+   remembered globally, so later `codesync enable <repo>` calls reuse them with no IDs. The same
+   absolute `~/…` project path is NOT required across machines; different usernames/OSes are fine.
 
-4. **Run the enable script:**
-   `codesync enable <project-dir> [peer-device-id]`
-   Report what it created: the two folder IDs, the encoded session-folder path, the config,
-   and the `.codesync` marker.
+4. **Run the enable command** (works for *any* repo — this is per-project and multi-repo safe):
+   `codesync enable <project-dir> [peer-device-id …]`
+   Report what it created: the two folder IDs, the encoded session path, the `.codesync` marker,
+   and which peers it shared with.
 
-5. **Explain the other side.** Tell the user to, on the OTHER machine: install the tooling +
-   Syncthing, clone the project under `~/…`, then run `codesync enable <that-project-dir>
-   <this-machine-device-id>`. Then **accept the two shared folders** on each side (Syncthing
-   UI at http://127.0.0.1:8384, or `syncthing cli`), pointing each folder at its local path.
+5. **Explain the other machines.** On EACH other machine: install the tooling + Syncthing, clone
+   the project under `~/…`, then run `codesync enable <that-project-dir> <this-machine-device-id>
+   [other-peer-ids…]`. Then **accept the shared folders** on each side (Syncthing UI at
+   http://127.0.0.1:8384, or `syncthing cli`). Only one machine should work in a given project at
+   a time.
 
 6. **Confirm.** Once both sides share the folders and show "Up to Date", the workflow is:
    `codesync start` (in the terminal) to begin a synced session, `/codesync:stop` to hand off.
