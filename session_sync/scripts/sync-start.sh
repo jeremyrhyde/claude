@@ -21,4 +21,12 @@ fi
 
 cd "$PROJECT_DIR"
 [ "$#" -gt 0 ] && exec claude "$@"
-exec claude --continue
+
+# Resume the project's session if one exists; otherwise start a fresh one (first-run safe).
+ENC=$(printf '%s' "$PROJECT_DIR" | sed 's:/:-:g')
+if ls "$HOME/.claude/projects/$ENC"/*.jsonl >/dev/null 2>&1; then
+  exec claude --continue
+else
+  echo "session-sync: no existing session for this project yet — starting a fresh one."
+  exec claude
+fi
