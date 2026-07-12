@@ -3,6 +3,7 @@ name: disable
 description: Disable cross-machine syncing for a project on THIS machine — removes the
   .claude-sync marker (pausing sync), and optionally tears down the Syncthing folders + config.
   Never touches your code or transcripts. Invoked as /sync:disable.
+disable-model-invocation: true
 ---
 
 # /sync:disable — disable session sync for a project

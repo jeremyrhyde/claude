@@ -3,6 +3,7 @@ name: enable
 description: Enable cross-machine Claude Code session syncing for a project on THIS machine —
   creates the Syncthing code + session folders, config, and .claude-sync marker, and shows how
   to pair the other machine. Run once per machine per project. Invoked as /sync:enable.
+disable-model-invocation: true
 ---
 
 # /sync:enable — enable session sync for a project

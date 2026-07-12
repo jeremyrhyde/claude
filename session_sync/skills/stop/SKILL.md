@@ -4,6 +4,7 @@ description: Stop and hand this Claude Code session off to another machine. Writ
   state note, optionally commits work-in-progress, and (only if the project has a .claude-sync
   marker) runs the Syncthing push so the code and this transcript are ready for the other
   machine to resume. Use right before switching computers. Invoked as /sync:stop.
+disable-model-invocation: true
 ---
 
 # /sync:stop — hand this session off

@@ -3,6 +3,7 @@ name: start
 description: (Reminder) Starting a synced session is a terminal command, not an in-session
   action. Invoking /sync:start just tells the user to run `sync-start` in their shell — a skill
   can't launch/resume the session you're trying to start (you're already inside a session here).
+disable-model-invocation: true
 ---
 
 # /sync:start — run it in your terminal
