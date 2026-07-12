@@ -48,50 +48,38 @@ systemctl --user enable --now syncthing.service   # if apt-installed; else use t
 
 ## One-time setup
 
-### 1. Same absolute project path on both machines
-Use a username/OS-neutral path (see DESIGN.md §6):
+Do these **on each machine**.
+
+### 1. Put the project under your home
+No sudo needed. The paths **may differ** between machines (different usernames/OSes are fine —
+folders sync by Syncthing **Folder ID**, not path):
 ```bash
-sudo mkdir -p /opt/dev
-sudo chown "$(id -un)":"$(id -gn)" /opt/dev
-# put your project at /opt/dev/<name> on BOTH machines (encodes identically regardless of user/OS)
+git clone <repo> ~/Development/<name>          # e.g. ~/Development/pluto
+```
+> Trade-off: with differing paths, the transcript's *internal* absolute paths reference the
+> machine they were created on (Claude re-reads from the current dir, so continuing works). To
+> avoid that entirely, use an identical username-neutral path like `/opt/dev/<name>` on both —
+> costs a one-time `sudo mkdir /opt/dev && sudo chown $USER /opt/dev`. See DESIGN.md §6.
+
+### 2. Install the tooling + Syncthing
+```bash
+bash session_sync/install.sh            # ccopen, cc-*, and the /setup-sync + /handoff-close skills
+bash session_sync/install-syncthing.sh  # Syncthing binary + auto-start service (or use apt/brew)
 ```
 
-### 2. Install the commands + skill (run on both machines)
+### 3. Wire up the project — one command
+From a Claude session in the project run the skill **`/setup-sync`**, or run the script:
 ```bash
-bash session_sync/install.sh
+cc-setup-sync ~/Development/<name> [peer-device-id]
 ```
-Installs `ccopen`, `cc-sync-wait`, `cc-sync-close` to `~/.local/bin`, the `/handoff-close`
-skill to `~/.claude/skills`, and a config template to `~/.config/session-sync/config.sh`.
+It creates both Syncthing folders (`<name>-code`, `<name>-sessions`) with matching IDs, a
+`.stignore`, `~/.config/session-sync/config.sh`, and the `.claude-sync` marker — and prints
+this machine's Device ID. If you pass the peer's Device ID it also shares the folders with it.
 
-### 3. Set up Syncthing (both machines, once)
-1. Start Syncthing (`syncthing` in a terminal, or enable the user service) and open its UI at
-   <http://127.0.0.1:8384>.
-2. **Pair the devices:** on each machine, *Add Remote Device* using the other's Device ID
-   (Actions → Show ID).
-3. **Add Folder A (code):** path = your project (`/opt/dev/<name>`), Folder ID = `claude-code`.
-   Share it with the other device. Add a **`.stignore`** in the folder:
-   ```
-   node_modules
-   target
-   .venv
-   dist
-   build
-   __pycache__
-   .DS_Store
-   *.log
-   ```
-4. **Add Folder B (sessions):** path = `~/.claude/projects/<encoded-path>/`
-   (e.g. `-opt-dev-<name>`), Folder ID = `claude-sessions`. Share it with the other device.
-   > The local path differs per machine (different `$HOME`); that's fine — Syncthing pairs by
-   > Folder **ID**, and the encoded subfolder name matches because the project path matches.
-5. (Optional) put each machine's Device ID into the *other* machine's
-   `~/.config/session-sync/config.sh` as `PEER_DEVICE_ID` so `cc-sync-close` waits for the peer.
-
-### 4. Configure + opt in
-```bash
-$EDITOR ~/.config/session-sync/config.sh      # set PROJECT_DIR + the two folder IDs
-touch /opt/dev/<name>/.claude-sync            # opt this project into syncing
-```
+### 4. Pair the two machines (once)
+In each Syncthing UI (<http://127.0.0.1:8384>): *Add Remote Device* with the other's Device ID,
+then **accept the two shared folders**, pointing each at its local path. (Passing
+`peer-device-id` in step 3 handles the share side; you still accept on the other machine.)
 
 ## Usage
 
@@ -125,11 +113,14 @@ session_sync/
 ├── install-syncthing.sh          no-sudo Syncthing binary installer (Linux/macOS)
 ├── config.example.sh             config template
 ├── scripts/
-│   ├── session-sync-lib.sh       shared helpers (Syncthing REST, sync logic)
-│   ├── sync-wait.sh    → cc-sync-wait
-│   ├── sync-close.sh   → cc-sync-close
-│   └── ccopen.sh       → ccopen
-└── skills/handoff-close/SKILL.md → ~/.claude/skills/handoff-close/
+│   ├── session-sync-lib.sh          shared helpers (Syncthing REST, sync logic)
+│   ├── sync-wait.sh        → cc-sync-wait
+│   ├── sync-close.sh       → cc-sync-close
+│   ├── ccopen.sh           → ccopen
+│   └── setup-project-sync.sh → cc-setup-sync   (per-project folder/config setup)
+└── skills/
+    ├── setup-sync/SKILL.md      → ~/.claude/skills/setup-sync/   (/setup-sync)
+    └── handoff-close/SKILL.md   → ~/.claude/skills/handoff-close/ (/handoff-close)
 ```
 
 ## Troubleshooting

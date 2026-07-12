@@ -12,12 +12,15 @@ mkdir -p "$BIN" "$SKILLS/handoff-close" "$CFG"
 
 echo "==> Installing scripts to $BIN"
 install -m 0644 "$SRC/scripts/session-sync-lib.sh" "$BIN/session-sync-lib.sh"
-install -m 0755 "$SRC/scripts/sync-wait.sh"  "$BIN/cc-sync-wait"
-install -m 0755 "$SRC/scripts/sync-close.sh" "$BIN/cc-sync-close"
-install -m 0755 "$SRC/scripts/ccopen.sh"     "$BIN/ccopen"
+install -m 0755 "$SRC/scripts/sync-wait.sh"         "$BIN/cc-sync-wait"
+install -m 0755 "$SRC/scripts/sync-close.sh"        "$BIN/cc-sync-close"
+install -m 0755 "$SRC/scripts/ccopen.sh"            "$BIN/ccopen"
+install -m 0755 "$SRC/scripts/setup-project-sync.sh" "$BIN/cc-setup-sync"
 
-echo "==> Installing handoff-close skill to $SKILLS/handoff-close"
+echo "==> Installing skills to $SKILLS"
+mkdir -p "$SKILLS/handoff-close" "$SKILLS/setup-sync"
 install -m 0644 "$SRC/skills/handoff-close/SKILL.md" "$SKILLS/handoff-close/SKILL.md"
+install -m 0644 "$SRC/skills/setup-sync/SKILL.md"    "$SKILLS/setup-sync/SKILL.md"
 
 echo "==> Config"
 if [ ! -f "$CFG/config.sh" ]; then
