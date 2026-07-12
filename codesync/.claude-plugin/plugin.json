@@ -1,5 +1,5 @@
 {
-  "name": "sync",
+  "name": "codesync",
   "description": "Cross-machine Claude Code session sync via Syncthing — enable/disable a project for syncing and start/stop synced sessions across machines.",
   "version": "1.0.0",
   "author": {

@@ -6,9 +6,9 @@
   },
   "plugins": [
     {
-      "name": "sync",
-      "source": "./session_sync",
-      "description": "Cross-machine Claude Code session sync via Syncthing (skills: /sync:enable, /sync:start, /sync:stop, /sync:disable)."
+      "name": "codesync",
+      "source": "./codesync",
+      "description": "Cross-machine Claude Code session sync via Syncthing (skills: /codesync:enable, /codesync:start, /codesync:stop, /codesync:disable)."
     }
   ]
 }

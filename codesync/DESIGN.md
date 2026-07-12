@@ -2,8 +2,8 @@
 
 Status: **Implemented.** This is the original design rationale (tools, sync model,
 cross-platform + different-username handling). Some details evolved during implementation —
-the shipped naming/packaging is the **`sync` plugin** (`/sync:enable` · `/sync:start` ·
-`/sync:stop` · `/sync:disable`) plus `sync-*` terminal commands, and the default project path
+the shipped naming/packaging is the **`codesync` plugin** (`/codesync:enable` · `/codesync:start` ·
+`/codesync:stop` · `/codesync:disable`) plus `sync-*` terminal commands, and the default project path
 is home-based (`~/Development/<name>`, not `/opt/dev`). **See [README.md](./README.md) for the
 current, authoritative setup + usage.**
 
@@ -133,13 +133,13 @@ are **POSIX sh**, avoiding GNU-only flags so they run on macOS's BSD userland to
 `python3`/`jq` for parsing rather than GNU `sed`/`readlink -f`).
 
 **Opt-in gating (two mechanisms, both honored).**
-1. **Skill-scoped:** `sync-close` is invoked *only* from `/sync:stop`, never automatically
+1. **Skill-scoped:** `sync-close` is invoked *only* from `/codesync:stop`, never automatically
    on exit. If you close a normal session, nothing syncs.
-2. **Directory-marker:** a project opts in by having a **`.claude-sync`** marker file at its
+2. **Directory-marker:** a project opts in by having a **`.codesync`** marker file at its
    root (created at setup). The open helper and the skill **no-op the sync** when the marker
-   is absent — so they're safe to run anywhere and only act on sync-enabled projects.
+   is absent — so they're safe to run anywhere and only act on codesync enabled projects.
 
-### 7.1 One config file — `session_sync/config.sh`
+### 7.1 One config file — `codesync/config.sh`
 ```sh
 PROJECT_DIR="/opt/dev/claude"
 CODE_FOLDER_ID="claude-code"          # Syncthing folder IDs (set when pairing)
@@ -148,53 +148,53 @@ SYNCTHING_URL="http://127.0.0.1:8384"
 # SYNCTHING_API_KEY optional; auto-detected if unset (see 7.6)
 ```
 
-### 7.2 `sync-wait.sh` (shared helper)
+### 7.2 `codesync wait` (sync-wait helper)
 Forces a rescan then polls the REST API until the given folders are fully synced locally.
 ```sh
 for id in "$@"; do curl -s -H "X-API-Key:$KEY" "$URL/rest/db/scan?folder=$id" >/dev/null; done
 # poll GET /rest/db/status?folder=$id until .state=="idle" && .needBytes==0 && .needItems==0
 ```
 
-### 7.3 `sync-start` — the one command you run to start (open only, no exit hook)
-Collapses "sync-wait → cd → resume" into a single wrapper. **Only opens** — it installs no
+### 7.3 `codesync start` — the one command you run to start (open only, no exit hook)
+Collapses "codesync wait → cd → resume" into a single wrapper. **Only opens** — it installs no
 on-exit behavior, so it never syncs when you quit Claude.
 ```sh
-. session_sync/config.sh
-[ -f "$PROJECT_DIR/.claude-sync" ] && sync-wait.sh "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
+. codesync/config.sh
+[ -f "$PROJECT_DIR/.codesync" ] && codesync wait "$CODE_FOLDER_ID" "$SESSION_FOLDER_ID"
 cd "$PROJECT_DIR"
-claude --resume        # you work; closing is handled explicitly via /sync:stop
+claude --resume        # you work; closing is handled explicitly via /codesync:stop
 ```
-Install as a shell function/alias `sync-start`. Sitting down = `sync-start`. If the dir has no
-`.claude-sync` marker, it skips the wait and just resumes (safe to use anywhere).
+Install as a shell function/alias `codesync start`. Sitting down = `codesync start`. If the dir has no
+`.codesync` marker, it skips the wait and just resumes (safe to use anywhere).
 
 ### 7.4 `sync-close.sh` (invoked by the skill, or run manually)
 Force a rescan so your latest edits **and the flushed transcript** are indexed for the peer;
 report status (optionally wait for the peer if it's currently online). **No-ops** if the
-project has no `.claude-sync` marker.
+project has no `.codesync` marker.
 
 **Ordering note.** The transcript JSONL is **appended incrementally** as the session runs, so
-when `/sync:stop` calls `sync-close.sh` mid-turn, everything up to that point is already
+when `/codesync:stop` calls `sync-close.sh` mid-turn, everything up to that point is already
 on disk and gets synced. The only thing not captured is the skill's *own* trailing summary
 line — which is fine, because `HANDOFF.md` (a synced file) carries that state. If you ever
 want the byte-for-byte-complete transcript, run `sync-close.sh` once more after exiting Claude
 (optional).
 
-### 7.5 Skill: `/sync:stop` (in-session prep **and** the sync)
-Plugin skill (`session_sync/skills/stop/SKILL.md`). Run it just before you switch — this
+### 7.5 Skill: `/codesync:stop` (in-session prep **and** the sync)
+Plugin skill (`codesync/skills/stop/SKILL.md`). Run it just before you switch — this
 is the single explicit "hand off" action, and it performs the sync itself:
 ```markdown
 ---
-name: sync-stop
+name: codesync stop
 description: Hand this Claude Code session off to another machine — write a handoff note,
   optionally commit WIP, and sync (code + transcript) to the peer. Use right before switching
-  computers. Only syncs if the project has a .claude-sync marker.
+  computers. Only syncs if the project has a .codesync marker.
 ---
 1. Summarize current state into HANDOFF.md (Done / In progress / Next step).
 2. Ask whether to commit WIP; if yes: `git add -A && git commit -m "wip: handoff <date>"`.
-3. If a `.claude-sync` marker exists at the project root, run
-   `session_sync/scripts/sync-close.sh` and report the sync status; otherwise report that
+3. If a `.codesync` marker exists at the project root, run
+   `codesync/scripts/sync-close.sh` and report the sync status; otherwise report that
    sync is not enabled for this directory and skip it.
-4. Print the resume command for the other machine (`sync-start`).
+4. Print the resume command for the other machine (`codesync start`).
 ```
 
 ### 7.6 Locating the Syncthing API key portably
@@ -210,17 +210,17 @@ then greps the key. (Avoids hardcoding OS paths.)
 
 **Per machine, when you sit down:**
 ```sh
-sync-start           # waits for sync (if .claude-sync present), then resumes in /opt/dev/claude
+codesync start           # waits for sync (if .codesync present), then resumes in /opt/dev/claude
 ```
 **When you're ready to hand off / leave:**
 ```
-/sync:stop   # writes HANDOFF.md, optionally commits WIP, AND runs the sync-close
+/codesync:stop   # writes HANDOFF.md, optionally commits WIP, AND runs the sync-close
 ```
 Then exit Claude normally. Nothing syncs on a plain exit — sync happens **only** when you run
-`/sync:stop`, and **only** in a `.claude-sync` directory.
+`/codesync:stop`, and **only** in a `.codesync` directory.
 
 So: **one command to open, one skill to hand off.** Normal `claude` sessions elsewhere are
-completely unaffected. (`sync-wait` / `sync-close` still exist as standalone scripts for
+completely unaffected. (`codesync wait` / `sync-close` still exist as standalone scripts for
 manual/debug use.)
 
 ## 9. Failure modes & conflict handling
@@ -228,7 +228,7 @@ manual/debug use.)
 | Situation | Result | Mitigation |
 |---|---|---|
 | Same session live on both machines | `*.sync-conflict-*` on the JSONL | Always close before switching (sequential model). |
-| Switch before sync finished | Stale transcript | `ccdev` blocks on `sync-wait` before resuming. |
+| Switch before sync finished | Stale transcript | `ccdev` blocks on `codesync wait` before resuming. |
 | Peer offline when leaving | Not yet pushed | Fine — pushes on next connect; `ccdev` waits for the pull on arrival. |
 | Heavy build dirs | Slow syncs | `.stignore`. |
 | Code edited on both while offline | Conflict file | Resolve, commit clean state to git. |
@@ -240,22 +240,22 @@ chown (§6); place `/opt/dev/claude`.
 **Syncthing:** pair the two devices; add Folder A (code, `.stignore`) with ID `claude-code`;
 add Folder B (`$HOME/.claude/projects/-opt-dev-claude`) with ID `claude-sessions`; both
 send-receive.
-**Marker:** `touch /opt/dev/claude/.claude-sync` to opt this project into syncing.
-**Install:** run `session_sync/install.sh` (installs the `sync-*` commands to `~/.local/bin`
-and the `sync` plugin) on both machines.
+**Marker:** `touch /opt/dev/claude/.codesync` to opt this project into syncing.
+**Install:** run `codesync/install.sh` (installs the `sync-*` commands to `~/.local/bin`
+and the `codesync` plugin) on both machines.
 
 ## 11. Verification / test plan
 
-1. Desktop: `sync-start`, make a trivial uncommitted edit, `/sync:stop` (syncs), exit.
-2. Laptop: `sync-start`; confirm the session resumes and the edit is present; one turn;
-   `/sync:stop`; exit.
-3. Desktop: `sync-start`; confirm the laptop's turn + edits are present.
-4. Verify a session in a **non**-`.claude-sync` dir does nothing on `/sync:stop` (no sync).
+1. Desktop: `codesync start`, make a trivial uncommitted edit, `/codesync:stop` (syncs), exit.
+2. Laptop: `codesync start`; confirm the session resumes and the edit is present; one turn;
+   `/codesync:stop`; exit.
+3. Desktop: `codesync start`; confirm the laptop's turn + edits are present.
+4. Verify a session in a **non**-`.codesync` dir does nothing on `/codesync:stop` (no sync).
 5. Deliberately edit both offline; confirm a `sync-conflict` file appears; verify recovery.
 
 ## 12. Open decisions
 
-- **WIP auto-commit** in `/sync:stop`: prompt each time (default) vs. always automatic?
+- **WIP auto-commit** in `/codesync:stop`: prompt each time (default) vs. always automatic?
 - **Folder B scope:** single project subfolder (recommended) vs. all of `~/.claude/projects/`.
 - **Multiple projects later:** replicate the Folder A/B pair per project, or one shared
   `/opt/dev` code root with per-project session subfolders.
