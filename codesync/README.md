@@ -108,6 +108,9 @@ codesync start            # waits for sync, then resumes THIS repo's session
 - **Directory-aware:** `codesync start` and `/codesync:stop` resolve the project from your
   current directory (the nearest `.codesync` marker), so they work per-repo with no config
   switching. `codesync start <dir>` also works.
+- **Two stop variants:** `/codesync:stop` writes a `HANDOFF.md` note + offers a WIP commit, then
+  syncs. **`/codesync:stop-force`** skips both and goes straight to the sync/push — quick, no
+  ceremony.
 - Normal `claude` sessions anywhere else are unaffected — nothing syncs unless you're in a
   `.codesync` directory.
 - `codesync start` passes extra args through to `claude` (default `--continue`; use
