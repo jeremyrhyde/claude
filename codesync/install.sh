@@ -14,20 +14,6 @@ echo "==> Installing the 'codesync' command to $BIN"
 install -m 0644 "$SRC/scripts/codesync-lib.sh" "$BIN/codesync-lib.sh"
 install -m 0755 "$SRC/scripts/codesync.sh"     "$BIN/codesync"
 
-echo "==> Installing the 'codesync' plugin (/codesync:enable /codesync:start /codesync:stop /codesync:disable)"
-if command -v claude >/dev/null 2>&1; then
-  claude plugin marketplace add "$REPO_ROOT" 2>/dev/null || echo "    (marketplace already added)"
-  if claude plugin install codesync@jrhyde-tools --scope user 2>/dev/null; then
-    echo "    installed 'codesync' plugin (user scope — available in every project)"
-  else
-    echo "    NOTE: finish with:  claude plugin install codesync@jrhyde-tools --scope user"
-  fi
-else
-  echo "    'claude' CLI not on PATH yet — after it's available, run:"
-  echo "      claude plugin marketplace add $REPO_ROOT"
-  echo "      claude plugin install codesync@jrhyde-tools --scope user"
-fi
-
 echo "==> Config"
 if [ ! -f "$CFG/config.sh" ]; then
   install -m 0644 "$SRC/config.example.sh" "$CFG/config.sh"
@@ -47,9 +33,9 @@ command -v syncthing >/dev/null 2>&1 || echo "NOTE: Syncthing not found — run 
 cat <<'DONE'
 
 ==> Installed command: codesync (start | stop | enable | disable | wait)
-    Installed plugin 'codesync':  /codesync:enable  /codesync:start  /codesync:stop  /codesync:disable
     Next:
-      1. Run /codesync:enable (or: codesync enable <project-dir> [peer-device-id])
-      2. Install + pair Syncthing; accept the two shared folders (README.md)
+      1. Install the plugin globally:  make install-globally
+         (or: claude plugin marketplace add <repo> && claude plugin install codesync@jrhyde-tools --scope user)
+      2. Enable a project:  codesync enable <project-dir> [peer-device-id]
       3. Use:  codesync start  to begin a session, and  /codesync:stop  to hand off.
 DONE

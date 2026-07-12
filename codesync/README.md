@@ -20,6 +20,9 @@ The four skills ship as a small Claude Code **plugin** named `codesync` (`/codes
 
 ## Prerequisites (both machines)
 
+**`make setup` + `make install` handle all of this for you** (see [One-time setup](#one-time-setup)).
+The details below are reference for doing it by hand.
+
 | Tool | Linux | macOS |
 |---|---|---|
 | jq | `sudo apt install jq` | `brew install jq` |
@@ -65,15 +68,18 @@ git clone <repo> ~/Development/<name>          # e.g. ~/Development/pluto
 > avoid that entirely, use an identical username-neutral path like `/opt/dev/<name>` on both —
 > costs a one-time `sudo mkdir /opt/dev && sudo chown $USER /opt/dev`. See DESIGN.md §6.
 
-### 2. Install the tooling + Syncthing
+### 2. Install everything — via `make` (from the repo root)
 ```bash
-bash codesync/install.sh            # sync-* terminal commands + installs the 'codesync' plugin (user scope)
-bash codesync/install-syncthing.sh  # Syncthing binary + auto-start service (or use apt/brew)
+make setup             # system packages: jq, curl, git
+make install           # Syncthing (installs it if missing) + the `codesync` command → ~/.local/bin
+make install-globally  # register the marketplace + install the `codesync` plugin (user scope)
+# …or all three at once:  make all
 ```
-`install.sh` registers this repo as a local plugin marketplace and installs the `codesync` plugin
-(equivalent to `claude plugin marketplace add <repo> && claude plugin install codesync@jrhyde-tools
---scope user`), so `/codesync:enable` · `/codesync:start` · `/codesync:stop` · `/codesync:disable` work in every
-project.
+`make install-globally` is what makes `/codesync:enable` · `/codesync:start` · `/codesync:stop` ·
+`/codesync:disable` available in **every** project — it runs `claude plugin marketplace add <repo>`
++ `claude plugin install codesync@jrhyde-tools --scope user`. Run `/reload-plugins` (or restart
+Claude) afterward. The pieces are also runnable directly: `bash codesync/install.sh` (command),
+`bash codesync/install-syncthing.sh` (Syncthing).
 
 ### 3. Wire up the project — one command
 From a Claude session in the project run the skill **`/codesync:enable`**, or run the script:
