@@ -135,13 +135,17 @@ sync_push_folders() {
   fi
   conns=$(st_get "/rest/system/connections" 2>/dev/null || echo '{}')
   _start=$(date +%s)
+  _ntotal=0; _nok=0; _offline=""; _incomplete=""
   for peer in $PEER_DEVICE_IDS; do
+    _ntotal=$(( _ntotal + 1 ))
     short=$(printf '%s' "$peer" | cut -c1-7)
     online=$(printf '%s' "$conns" | jq -r --arg d "$peer" '.connections[$d].connected // false')
     if [ "$online" != "true" ]; then
       echo "codesync: peer ${short}... offline — it'll pull when it reconnects."
+      _offline="$_offline $short"
       continue
     fi
+    _peer_ok=yes
     for id in "$@"; do
       printf 'codesync: pushing "%s" to %s... ' "$id" "$short"
       while :; do
@@ -149,11 +153,24 @@ sync_push_folders() {
         pct=$(printf '%.0f' "$comp")
         [ "$pct" -ge 100 ] && { echo "OK"; break; }
         _now=$(date +%s)
-        [ $(( _now - _start )) -ge "$SYNC_WAIT_TIMEOUT" ] && { echo "(timeout — finishing in background)"; break; }
+        [ $(( _now - _start )) -ge "$SYNC_WAIT_TIMEOUT" ] && { echo "(timeout - still transferring)"; _peer_ok=no; break; }
         printf '.'; sleep 2
       done
     done
+    if [ "$_peer_ok" = yes ]; then _nok=$(( _nok + 1 )); else _incomplete="$_incomplete $short"; fi
   done
+
+  # --- summary line ---
+  if [ "$_ntotal" -eq 0 ]; then
+    echo "codesync: summary - no peers configured."
+  elif [ "$_nok" -eq "$_ntotal" ]; then
+    echo "codesync: summary - fully synced to all $_ntotal peer(s)."
+  else
+    _msg="codesync: summary - WARNING: fully synced to $_nok/$_ntotal peer(s)."
+    [ -n "$_offline" ]    && _msg="$_msg  offline:$_offline (will pull when back online)."
+    [ -n "$_incomplete" ] && _msg="$_msg  incomplete:$_incomplete (still transferring in background)."
+    echo "$_msg"
+  fi
 }
 
 # --- subcommands ------------------------------------------------------------
