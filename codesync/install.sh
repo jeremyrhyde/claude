@@ -15,11 +15,11 @@ install -m 0644 "$SRC/scripts/codesync-lib.sh" "$BIN/codesync-lib.sh"
 install -m 0755 "$SRC/scripts/codesync.sh"     "$BIN/codesync"
 
 echo "==> Config"
-if [ ! -f "$CFG/config.sh" ]; then
-  install -m 0644 "$SRC/config.example.sh" "$CFG/config.sh"
-  echo "    Wrote $CFG/config.sh — or just run /codesync:enable (or: codesync enable <dir>) to generate it."
-else
+if [ -f "$CFG/config.sh" ]; then
   echo "    $CFG/config.sh already exists — left unchanged."
+else
+  echo "    No config yet — that's expected. Run 'codesync enable <project-dir>' (or /codesync:enable)"
+  echo "    to generate $CFG/config.sh with this machine's real path + folder IDs."
 fi
 
 case ":$PATH:" in

@@ -1,14 +1,17 @@
-# codesync configuration.
-# Installed to ~/.config/codesync/config.sh by install.sh — edit it there (per machine).
+# codesync configuration — REFERENCE ONLY.
+# You normally never write this by hand: `codesync enable <project-dir>` (or /codesync:enable)
+# generates ~/.config/codesync/config.sh for you, with the real paths + folder IDs.
+#
+# Paths MAY differ per machine (home-based is fine — folders sync by Syncthing Folder ID, not
+# path). See DESIGN.md §6.
 
-# Absolute project path. MUST be identical on every machine (username/OS-neutral — see DESIGN.md §6).
-PROJECT_DIR="/opt/dev/claude"
+PROJECT_DIR="$HOME/Development/pluto"    # this machine's absolute project path (e.g. /Users/you/Development/pluto)
 
-# Syncthing folder IDs you assign when pairing the two devices (shown in the Syncthing UI).
-CODE_FOLDER_ID="claude-code"          # Folder A: the project directory ($PROJECT_DIR)
-SESSION_FOLDER_ID="claude-sessions"   # Folder B: $HOME/.claude/projects/<encoded-path>/
+# Syncthing folder IDs (codesync enable derives these from the project name: <name>-code / <name>-sessions).
+CODE_FOLDER_ID="pluto-code"             # Folder A: the project directory ($PROJECT_DIR)
+SESSION_FOLDER_ID="pluto-sessions"      # Folder B: $HOME/.claude/projects/<encoded-path>/
 
-# Optional: the OTHER machine's Syncthing device ID. If set, codesync stop will wait until the
+# Optional: the OTHER machine's Syncthing device ID. If set, `codesync stop` waits until the
 # peer has actually received your changes (when it's online). Leave empty to just index & go.
 PEER_DEVICE_ID=""
 
