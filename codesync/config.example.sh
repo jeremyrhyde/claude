@@ -7,6 +7,10 @@
 # `codesync stop` waits for each of these that's currently online to receive your changes.
 PEER_DEVICE_IDS="I7FNI6T-7OS7SKC-… ANOTHER-MACHINE-ID-…"
 
+# Subset of the above marked as Syncthing "introducers" (the always-on hub). Spokes point at the
+# hub with `codesync enable <repo> --hub <hub-id>`; the hub auto-meshes them to each other.
+HUB_DEVICE_IDS=""
+
 # Optional overrides (sensible defaults otherwise):
 # SYNCTHING_URL="http://127.0.0.1:8384"
 # SYNCTHING_API_KEY=""     # auto-detected from Syncthing's config.xml if empty

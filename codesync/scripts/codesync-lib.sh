@@ -16,6 +16,7 @@
 # shellcheck disable=SC1090
 [ -f "$CODESYNC_CONFIG" ] && . "$CODESYNC_CONFIG"
 : "${PEER_DEVICE_IDS:=${PEER_DEVICE_ID:-}}"   # back-compat with the old single-peer var
+: "${HUB_DEVICE_IDS:=}"                        # peers marked as Syncthing introducers (auto-mesh)
 : "${SYNCTHING_URL:=http://127.0.0.1:8384}"
 : "${SYNC_WAIT_TIMEOUT:=120}"
 
@@ -85,13 +86,15 @@ load_project_ids() {
 # Combine + de-duplicate space-separated device-id lists (args), print one space-joined line.
 merge_peers() { printf '%s\n' "$@" | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' ' | sed 's/ *$//'; }
 
-# Rewrite the global config with a new peer list, preserving any user overrides.
+# Rewrite the global config with new peer + hub lists, preserving any user overrides.
+# $1 = peer ids, $2 = hub (introducer) ids
 write_global_config() {
   cfgdir=$(dirname "$CODESYNC_CONFIG"); mkdir -p "$cfgdir"
   tmp="$CODESYNC_CONFIG.new"
   {
     echo "# codesync global config (per-machine) — managed by 'codesync enable'."
     echo "PEER_DEVICE_IDS=\"$1\""
+    echo "HUB_DEVICE_IDS=\"$2\""
     [ -f "$CODESYNC_CONFIG" ] && grep -E '^(SYNCTHING_URL|SYNCTHING_API_KEY|SYNC_WAIT_TIMEOUT)=' "$CODESYNC_CONFIG" 2>/dev/null || true
   } > "$tmp"
   mv "$tmp" "$CODESYNC_CONFIG"
@@ -189,12 +192,22 @@ cmd_stop() {
 }
 
 cmd_enable() {
-  [ "$#" -ge 1 ] || die "usage: codesync enable <project-dir> [peer-device-id …]"
+  # Parse: <project-dir> [peer-id …] [--hub <hub-id>]  (order-independent)
+  DIR=""; NEW_PEERS=""; NEW_HUBS=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --hub)   shift; [ -n "${1:-}" ] || die "--hub requires a device id"; NEW_HUBS="$NEW_HUBS $1" ;;
+      --hub=*) NEW_HUBS="$NEW_HUBS ${1#--hub=}" ;;
+      -*)      die "unknown option '$1' (usage: codesync enable <project-dir> [peer-id …] [--hub <hub-id>])" ;;
+      *)       if [ -z "$DIR" ]; then DIR="$1"; else NEW_PEERS="$NEW_PEERS $1"; fi ;;
+    esac
+    shift
+  done
+  [ -n "$DIR" ] || die "usage: codesync enable <project-dir> [peer-device-id …] [--hub <hub-id>]"
   have syncthing || die "syncthing not found — run install-syncthing.sh first"
   st_ready
-  PROJECT_DIR=$(cd "$1" 2>/dev/null && pwd) || die "project dir '$1' not found"
-  shift
-  NEW_PEERS="$*"
+  PROJECT_DIR=$(cd "$DIR" 2>/dev/null && pwd) || die "project dir '$DIR' not found"
+  NEW_PEERS="$NEW_PEERS $NEW_HUBS"   # hubs are also peers (we share the folder with them)
   NAME=$(basename "$PROJECT_DIR")
   CODE_ID="${NAME}-code"; SESSION_ID="${NAME}-sessions"
   ENC=$(printf '%s' "$PROJECT_DIR" | sed 's:/:-:g')
@@ -233,16 +246,23 @@ EOF
   printf 'CODE_FOLDER_ID="%s"\nSESSION_FOLDER_ID="%s"\n' "$CODE_ID" "$SESSION_ID" > "$PROJECT_DIR/.codesync"
   echo "codesync: marked $PROJECT_DIR/.codesync"
 
-  # merge any new peers into the global peer list, then share this project's folders with all
+  # merge new peers/hubs into the global lists, then share this project's folders with all peers
   ALL_PEERS=$(merge_peers "$PEER_DEVICE_IDS" "$NEW_PEERS")
-  write_global_config "$ALL_PEERS"
+  ALL_HUBS=$(merge_peers "$HUB_DEVICE_IDS" "$NEW_HUBS")
+  write_global_config "$ALL_PEERS" "$ALL_HUBS"
   echo "codesync: peers = ${ALL_PEERS:-<none>}"
+  [ -n "$ALL_HUBS" ] && echo "codesync: hubs  = $ALL_HUBS (marked as introducers → auto-mesh)"
   for p in $ALL_PEERS; do
-    syncthing cli config devices add --device-id "$p" --name "peer-$(printf '%s' "$p" | cut -c1-7)" 2>/dev/null \
-      && echo "  added device $(printf '%s' "$p" | cut -c1-7)…" || true
+    short=$(printf '%s' "$p" | cut -c1-7)
+    syncthing cli config devices add --device-id "$p" --name "peer-$short" 2>/dev/null \
+      && echo "  added device $short…" || true
+    case " $ALL_HUBS " in
+      *" $p "*) syncthing cli config devices "$p" introducer set true 2>/dev/null \
+                  && echo "  marked $short… as introducer (hub)" || true ;;
+    esac
     for f in "$CODE_ID" "$SESSION_ID"; do
       syncthing cli config folders "$f" devices add --device-id "$p" 2>/dev/null \
-        && echo "  shared '$f' with $(printf '%s' "$p" | cut -c1-7)…" || true
+        && echo "  shared '$f' with $short…" || true
     done
   done
 
@@ -251,9 +271,12 @@ EOF
 
 codesync: enabled '$NAME'.
   This machine's Device ID: $MYID
-  On EACH other machine: clone the project under ~/… (path may differ), then run
-      codesync enable <that-project-dir> $MYID [other-peer-ids…]
-  (peers are stored globally, so once set you can 'codesync enable <repo>' with no IDs).
+  Hub-and-spoke (recommended for 3+): on the always-on HUB run
+      codesync enable <dir> <spoke-id> [<spoke-id> …]     # hub knows every spoke
+  and on EACH other machine run
+      codesync enable <dir> --hub $MYID                    # spoke points at the hub; auto-meshes
+  Or full mesh: pass every other machine's id as plain peers.
+  (peers + hub persist globally, so later 'codesync enable <repo>' reuses them.)
   Accept the shared folders on each side, then: 'codesync start' / '/codesync:stop'.
 EOF
 }

@@ -22,9 +22,10 @@ disable-model-invocation: true
    absolute `~/…` project path is NOT required across machines; different usernames/OSes are fine.
 
 4. **Run the enable command** (works for *any* repo — this is per-project and multi-repo safe):
-   `codesync enable <project-dir> [peer-device-id …]`
-   Report what it created: the two folder IDs, the encoded session path, the `.codesync` marker,
-   and which peers it shared with.
+   `codesync enable <project-dir> [peer-device-id …] [--hub <hub-device-id>]`
+   For 3+ machines, prefer hub-and-spoke: on the always-on hub, list every spoke's id; on each
+   other machine, just pass `--hub <hub-id>` (it's marked a Syncthing introducer, so spokes
+   auto-mesh). Report the folder IDs, the `.codesync` marker, and which peers/hub it shared with.
 
 5. **Explain the other machines.** On EACH other machine: install the tooling + Syncthing, clone
    the project under `~/…`, then run `codesync enable <that-project-dir> <this-machine-device-id>

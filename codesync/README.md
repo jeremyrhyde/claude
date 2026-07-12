@@ -118,11 +118,19 @@ codesync start            # waits for sync, then resumes THIS repo's session
 - **Many repos:** just `codesync enable ~/Development/<repo>` for each one. Every repo gets its
   own independent folder pair (`<repo>-code` / `<repo>-sessions`) and its own `.codesync` marker;
   they all sync at once. `codesync start`/`stop` pick the right one from your current directory.
-- **3+ machines:** peers are a **list** (`PEER_DEVICE_IDS`). Pass every other machine's Device ID
-  to `codesync enable` — e.g. on machine A: `codesync enable <repo> <B-id> <C-id>`, on B:
-  `… <A-id> <C-id>`, etc. Peers are stored globally, so after the first `enable` you can add new
-  repos with just `codesync enable <repo>` (no IDs) and they'll share with all known peers.
-  `codesync stop` pushes to every peer that's currently online; the rest pull when they reconnect.
+- **3+ machines — hub-and-spoke (recommended).** Pick your always-on machine (the desktop) as
+  the hub. On the **hub**, list every other machine once:
+  `codesync enable <repo> <laptopA-id> <laptopB-id>`. On **each other machine**, just point at the
+  hub: `codesync enable <repo> --hub <desktop-id>`. `--hub` marks that device a Syncthing
+  *introducer*, so the spokes **auto-learn each other through the hub** — adding a 4th machine later
+  is just `codesync enable <repo> --hub <desktop-id>` on it (plus adding its id on the hub); the
+  existing spokes pick it up automatically. Peers + hub persist globally, so more repos need no IDs.
+- **Full mesh (alternative):** skip `--hub` and pass every other machine's id as plain peers on
+  each machine.
+- **Always-on hub = reliable handoffs.** `codesync stop` pushes to every peer currently online;
+  offline ones pull when they reconnect. As long as the hub runs Syncthing (its `systemd`
+  user service, which survives reboot/logout), any machine can hand off to any other even when the
+  others are asleep — the hub stores and forwards automatically. Enable each repo on the hub too.
 - **One machine per directory at a time** — codesync assumes sequential use; don't run the same
   project's session live on two machines simultaneously (Syncthing would create a conflict file).
 
