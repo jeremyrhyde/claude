@@ -1,11 +1,11 @@
 ---
-name: sync-start
+name: start
 description: (Reminder) Starting a synced session is a terminal command, not an in-session
-  action. Invoking this just tells the user to run `sync-start` in their shell — because a skill
+  action. Invoking /sync:start just tells the user to run `sync-start` in their shell — a skill
   can't launch/resume the session you're trying to start (you're already inside a session here).
 ---
 
-# Sync start — run it in your terminal
+# /sync:start — run it in your terminal
 
 Starting a synced session can't be done from inside Claude — by the time this skill runs you're
 already in a session, and a skill can't turn the current session into the resumed one. So do NOT

@@ -1,17 +1,17 @@
 ---
-name: sync-disable
+name: disable
 description: Disable cross-machine syncing for a project on THIS machine — removes the
   .claude-sync marker (pausing sync), and optionally tears down the Syncthing folders + config.
-  Never touches your code or transcripts. Use to opt a project back out of syncing.
+  Never touches your code or transcripts. Invoked as /sync:disable.
 ---
 
-# Disable session sync for a project
+# /sync:disable — disable session sync for a project
 
 1. **Identify the project.** Default to the current working directory; confirm with the user
    which project they want to disable if ambiguous.
 
 2. **Remove the marker (always).** Run `sync-disable <project-dir>`. This deletes the
-   `.claude-sync` marker so `/sync-stop` and `sync-start` no longer act on the project. Report
+   `.claude-sync` marker so `/sync:stop` and `sync-start` no longer act on the project. Report
    that syncing is now paused but nothing else was changed.
 
 3. **Ask about full teardown.** Ask whether they also want to remove the Syncthing folders and
@@ -20,4 +20,4 @@ description: Disable cross-machine syncing for a project on THIS machine — rem
    Make clear this unregisters the two Syncthing folders and clears `config.sh`, but **does not
    delete any code or `~/.claude` transcripts** — those stay on disk.
 
-4. **Confirm.** Summarize what was removed and note they can re-enable anytime with `/sync-enable`.
+4. **Confirm.** Summarize what was removed and note they can re-enable anytime with `/sync:enable`.

@@ -12,7 +12,11 @@ A Claude Code session is a JSONL file under `~/.claude/projects/<encoded-project
 [Syncthing](https://syncthing.net) continuously mirrors two folders between your machines —
 the project directory and that project's transcript folder — so either machine can
 `claude --continue` the same session. Syncing is **opt-in**: it only happens when you run the
-`/sync-stop` skill, and only in a directory containing a `.claude-sync` marker.
+`/sync:stop` skill, and only in a directory containing a `.claude-sync` marker.
+
+The four skills ship as a small Claude Code **plugin** named `sync` (`/sync:enable`,
+`/sync:start`, `/sync:stop`, `/sync:disable`); the matching terminal commands (`sync-start`,
+`sync-stop`, …) install to `~/.local/bin`.
 
 ## Prerequisites (both machines)
 
@@ -63,12 +67,16 @@ git clone <repo> ~/Development/<name>          # e.g. ~/Development/pluto
 
 ### 2. Install the tooling + Syncthing
 ```bash
-bash session_sync/install.sh            # sync-* commands + the /sync-enable /sync-stop /sync-disable /sync-start skills
+bash session_sync/install.sh            # sync-* terminal commands + installs the 'sync' plugin (user scope)
 bash session_sync/install-syncthing.sh  # Syncthing binary + auto-start service (or use apt/brew)
 ```
+`install.sh` registers this repo as a local plugin marketplace and installs the `sync` plugin
+(equivalent to `claude plugin marketplace add <repo> && claude plugin install sync@jrhyde-tools
+--scope user`), so `/sync:enable` · `/sync:start` · `/sync:stop` · `/sync:disable` work in every
+project.
 
 ### 3. Wire up the project — one command
-From a Claude session in the project run the skill **`/sync-enable`**, or run the script:
+From a Claude session in the project run the skill **`/sync:enable`**, or run the script:
 ```bash
 sync-enable ~/Development/<name> [peer-device-id]
 ```
@@ -86,12 +94,12 @@ then **accept the two shared folders**, pointing each at its local path. (Passin
 ```bash
 sync-start            # sit down at either machine: waits for sync, then resumes the session
 # ...work with Claude...
-/sync-stop    # before switching: writes HANDOFF.md, optional WIP commit, pushes the sync
+/sync:stop            # before switching: writes HANDOFF.md, optional WIP commit, pushes the sync
 # then exit Claude normally
 ```
 
 - Normal `claude` sessions anywhere else are unaffected — nothing syncs unless you run
-  `/sync-stop` in a `.claude-sync` directory.
+  `/sync:stop` in a `.claude-sync` directory.
 - `sync-start` passes extra args through to `claude` (default is `--continue`; use
   `sync-start --resume` for the session picker).
 
@@ -105,28 +113,32 @@ sync-start            # sit down at either machine: waits for sync, then resumes
 
 ## Files
 
+The `sync` plugin lives in `session_sync/` (plugin root); the repo root holds the marketplace
+catalog that makes it installable:
 ```
-session_sync/
-├── DESIGN.md                design rationale (read this)
-├── README.md                this guide
-├── install.sh               per-user installer (commands + skills)
-├── install-syncthing.sh     no-sudo Syncthing installer + auto-start service (Linux/macOS)
-├── config.example.sh        config template
-└── scripts/
-    ├── session-sync-lib.sh  shared helpers (Syncthing REST, sync logic)
-    ├── sync-wait.sh    → sync-wait     (helper: block until folders are synced)
-    ├── sync-start.sh   → sync-start    (begin a synced session)
-    ├── sync-stop.sh    → sync-stop     (push / hand off; also via /sync-stop)
-    ├── sync-enable.sh  → sync-enable   (per-project setup; also via /sync-enable)
-    └── sync-disable.sh → sync-disable  (opt-out; also via /sync-disable)
-
-# Skills live in the repo's .claude/skills/ (versioned) and install.sh copies them to
-# ~/.claude/skills/ (user-level) so they work in EVERY project, not just this repo:
-.claude/skills/
-    ├── sync-enable/   → /sync-enable
-    ├── sync-stop/     → /sync-stop
-    ├── sync-disable/  → /sync-disable
-    └── sync-start/    → /sync-start   (reminder to run `sync-start` in the terminal)
+<repo-root>/
+├── .claude-plugin/
+│   └── marketplace.json          local marketplace 'jrhyde-tools' → points at ./session_sync
+└── session_sync/                 the 'sync' plugin
+    ├── .claude-plugin/
+    │   └── plugin.json           plugin manifest (name: sync, v1.0.0)
+    ├── skills/                   plugin skills (folder name = /sync:<name>)
+    │   ├── enable/SKILL.md        → /sync:enable
+    │   ├── start/SKILL.md         → /sync:start   (reminder to run `sync-start` in the terminal)
+    │   ├── stop/SKILL.md          → /sync:stop
+    │   └── disable/SKILL.md       → /sync:disable
+    ├── DESIGN.md                 design rationale (read this)
+    ├── README.md                 this guide
+    ├── install.sh                installs terminal commands + the plugin (user scope)
+    ├── install-syncthing.sh      no-sudo Syncthing installer + auto-start service (Linux/macOS)
+    ├── config.example.sh         config template
+    └── scripts/                  the terminal commands (→ ~/.local/bin)
+        ├── session-sync-lib.sh   shared helpers (Syncthing REST, sync logic)
+        ├── sync-wait.sh    → sync-wait     (helper: block until folders are synced)
+        ├── sync-start.sh   → sync-start    (begin a synced session)
+        ├── sync-stop.sh    → sync-stop     (push / hand off; also via /sync:stop)
+        ├── sync-enable.sh  → sync-enable   (per-project setup; also via /sync:enable)
+        └── sync-disable.sh → sync-disable  (opt-out; also via /sync:disable)
 ```
 
 ## Troubleshooting

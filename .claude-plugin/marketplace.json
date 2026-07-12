@@ -1,0 +1,14 @@
+{
+  "name": "jrhyde-tools",
+  "owner": {
+    "name": "Jeremy Hyde",
+    "email": "jeremy.r.hyde@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "sync",
+      "source": "./session_sync",
+      "description": "Cross-machine Claude Code session sync via Syncthing (skills: /sync:enable, /sync:start, /sync:stop, /sync:disable)."
+    }
+  ]
+}

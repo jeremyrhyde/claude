@@ -1,11 +1,11 @@
 ---
-name: sync-enable
+name: enable
 description: Enable cross-machine Claude Code session syncing for a project on THIS machine —
   creates the Syncthing code + session folders, config, and .claude-sync marker, and shows how
-  to pair the other machine. Run once per machine per project (e.g. desktop, then laptop).
+  to pair the other machine. Run once per machine per project. Invoked as /sync:enable.
 ---
 
-# Enable session sync for a project
+# /sync:enable — enable session sync for a project
 
 1. **Identify the project.** Default to the current working directory; if it's not a project
    root (no repo / not what the user means), ask which directory to enable.
@@ -30,7 +30,7 @@ description: Enable cross-machine Claude Code session syncing for a project on T
    UI at http://127.0.0.1:8384, or `syncthing cli`), pointing each folder at its local path.
 
 6. **Confirm.** Once both sides share the folders and show "Up to Date", the workflow is:
-   `sync-start` (in the terminal) to begin a synced session, `/sync-stop` to hand off.
+   `sync-start` (in the terminal) to begin a synced session, `/sync:stop` to hand off.
 
 Note: the code and session folders sync by Syncthing **Folder ID**, so the two machines can
 use different local paths (`/home/<user>/…` vs `/Users/<user>/…`). The transcript records
