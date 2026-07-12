@@ -134,6 +134,6 @@ echo "==> This machine's Device ID (use it to pair the other machine):"
 st cli show system 2>/dev/null | (command -v jq >/dev/null && jq -r .myID || cat) || echo "    (open http://127.0.0.1:8384 -> Actions -> Show ID)"
 cat <<'DONE'
 
-Next: open http://127.0.0.1:8384, pair the other machine (Add Remote Device), and add the two
-shared folders (see README.md). Then edit ~/.config/session-sync/config.sh and `touch .claude-sync`.
+Next: run  codesync enable <project-dir> [peer-id …] [--hub <hub-id>]  to set up a project
+(it creates + shares the two Syncthing folders and writes ~/.config/codesync/config.sh).
 DONE
